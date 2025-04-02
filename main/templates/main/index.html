@@ -1,4 +1,49 @@
 {% extends "main/base.html" %}
 {% block content %}
-    <h2>Index Page</h2>
+    <div class="container flex items-center justify-center pt-10 gap-6 flex-col">
+        <div class="input flex gap-6 flex-col">
+            <h2 class="text-3xl mb-15 font-bold">Chat Page</h2>
+            <div class="messages flex flex-col gap-2" id="messages"></div>
+            <form action="" class="input-form flex flex-col gap-2" id="message-form">
+                <input type="text" class="w-full p-2 text-center border border-gray-400 rounded" id="message-input" placeholder="Type your message here...">
+                <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded" id="send-message" type="submit">Send</button>
+            </form>
+            
+        </div>
+    </div>
+
+    <script>
+        const messagesDiv = document.getElementById("messages");
+        const messageInput = document.getElementById("message-input");
+        const sendMessageBtn = document.getElementById("send-message");
+        const form = document.getElementById("message-form");
+        
+        let url = `ws://${window.location.host}/ws/chat/`;
+        let socket = new WebSocket(url);
+
+        socket.onopen = function(event) {
+            console.log("Socket connected");
+        };
+
+        form.addEventListener("submit", function(event) {
+            event.preventDefault();
+            let message = messageInput.value.trim();
+            if (message === "") return;
+            socket.send(JSON.stringify({"message": message}));
+            console.log(message + " sent");
+            messageInput.value = "";
+        });
+
+        socket.onmessage = function(event) {
+            let data = JSON.parse(event.data);
+            if (data.type == "chat_message") {
+                console.log(data + " received");
+                messagesDiv.innerHTML += `<div class="message my-2">${data.message}</div>`;
+            }
+        };
+
+        window.addEventListener("error", function(event) {
+            socket.close();
+        });
+    </script>
 {% endblock %}
