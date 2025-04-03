@@ -3,9 +3,12 @@ from django.contrib.auth.models import User
 
 # Create your models here.
 class ChatMessage(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="chat_messages", null=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="chat_messages")
     message = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
-        return self.message
+        return f"{self.user.username if self.user else 'Anonymous'}: {self.message[:50]}{'...' if len(self.message) > 50 else ''}"
+    
+    class Meta:
+        ordering = ['created_at']

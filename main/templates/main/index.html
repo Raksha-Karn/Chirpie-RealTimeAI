@@ -2,8 +2,15 @@
 {% block content %}
     <div class="container flex items-center justify-center pt-10 gap-6 flex-col">
         <div class="input flex gap-6 flex-col">
-            <h2 class="text-3xl mb-15 font-bold">Chat Page</h2>
-            <div class="messages flex flex-col gap-2" id="messages"></div>
+            <h1 class="text-3xl mb-15 font-bold">Chat Page</h1>
+            <h2>Welcome, {{ request.user.username }}</h2>
+            <div class="messages flex flex-col gap-2 border border-gray-300 rounded p-4 h-96 overflow-y-auto" id="messages">
+                {% for message in message_list %}
+                <div class="message my-2">
+                    <strong>{{ message.user.username }}</strong>: {{ message.message }}
+                </div>
+                {% endfor %}
+            </div>
             <form action="" class="input-form flex flex-col gap-2" id="message-form">
                 <input type="text" class="w-full p-2 text-center border border-gray-400 rounded" id="message-input" placeholder="Type your message here...">
                 <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded" id="send-message" type="submit">Send</button>
@@ -17,6 +24,12 @@
         const messageInput = document.getElementById("message-input");
         const sendMessageBtn = document.getElementById("send-message");
         const form = document.getElementById("message-form");
+
+        function scrollToBottom() {
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        window.onload = scrollToBottom;
         
         let url = `ws://${window.location.host}/ws/chat/`;
         let socket = new WebSocket(url);
@@ -29,7 +42,13 @@
             event.preventDefault();
             let message = messageInput.value.trim();
             if (message === "") return;
-            socket.send(JSON.stringify({"message": message}));
+
+            socket.send(
+                JSON.stringify({
+                    "user_id": {{ request.user.id|default:"null" }},
+                    "message": message
+                })
+            );
             console.log(message + " sent");
             messageInput.value = "";
         });
@@ -37,12 +56,16 @@
         socket.onmessage = function(event) {
             let data = JSON.parse(event.data);
             if (data.type == "chat_message") {
-                console.log(data + " received");
-                messagesDiv.innerHTML += `<div class="message my-2">${data.message}</div>`;
+                const messageElement = document.createElement("div");
+                messageElement.className = "message my-2";
+                messageElement.innerHTML = `<strong>${data.username}</strong>: ${data.message}`;
+                messagesDiv.appendChild(messageElement);
+                
+                scrollToBottom();
             }
         };
 
-        window.addEventListener("error", function(event) {
+        window.addEventListener("beforeunload", function() {
             socket.close();
         });
     </script>

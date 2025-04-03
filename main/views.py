@@ -2,11 +2,13 @@ from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from .forms import SignUpForm
+from .models import ChatMessage
 
 # Create your views here.
 def index(request):
     if request.user.is_authenticated:
-        return render(request, "main/index.html")
+        message_list = ChatMessage.objects.all().order_by("created_at")
+        return render(request, "main/index.html", {'message_list': message_list})
     else:
         return redirect('login')
 
