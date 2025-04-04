@@ -11,7 +11,8 @@
         
         <div class="messages flex flex-col gap-2 border border-gray-300 rounded p-4 h-96 overflow-y-auto" id="messages">
             {% for message in message_list %}
-            <div class="message my-2 {% if message.user.username == 'AI_Assistant' %}bg-blue-50 p-2 rounded{% endif %}">
+            <div class="message my-2 {% if message.user.username == 'AI_Assistant' %}bg-blue-50 p-2 rounded{% endif %}" 
+                 {% if message.user.username == 'AI_Assistant' %}id="message-{{ message.id }}"{% endif %}>
                 <strong>{{ message.user.username }}</strong>: {{ message.message }}
             </div>
             {% endfor %}
@@ -37,6 +38,8 @@ const aiStatus = document.getElementById("ai-status");
 const aiStatusMessage = document.getElementById("ai-status-message");
 
 let aiIsResponding = false;
+
+let cursorInterval = null;
 
 function scrollToBottom() {
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
@@ -67,6 +70,64 @@ function updateAIStatus(status, message) {
     
     aiStatusMessage.textContent = message;
     aiStatus.classList.remove("hidden");
+}
+
+function createMessage(username, message, messageId = null, isPlaceholder = false) {
+    const messageElement = document.createElement("div");
+    messageElement.className = "message my-2";
+    
+    if (username === "AI_Assistant") {
+        messageElement.classList.add("bg-blue-50", "p-2", "rounded");
+        if (messageId) {
+            messageElement.id = `message-${messageId}`;
+        }
+        
+        if (isPlaceholder) {
+            messageElement.innerHTML = `<strong>${username}</strong>: <span class="ai-content">${message}</span><span class="cursor">|</span>`;
+            
+            const cursor = messageElement.querySelector('.cursor');
+            cursorInterval = setInterval(() => {
+                cursor.style.visibility = cursor.style.visibility === 'hidden' ? 'visible' : 'hidden';
+            }, 500);
+        } else {
+            messageElement.innerHTML = `<strong>${username}</strong>: <span class="ai-content">${message}</span>`;
+        }
+    } else {
+        messageElement.innerHTML = `<strong>${username}</strong>: ${message}`;
+    }
+    
+    messagesDiv.appendChild(messageElement);
+    scrollToBottom();
+    
+    return messageElement;
+}
+
+function updateAIMessage(messageId, content, isThinking = false, isFinal = false, isError = false) {
+    const messageElement = document.getElementById(`message-${messageId}`);
+    if (!messageElement) return;
+    
+    const contentElement = messageElement.querySelector('.ai-content');
+    if (!contentElement) return;
+    
+    contentElement.textContent = content;
+    
+    if (isFinal) {
+        const cursor = messageElement.querySelector('.cursor');
+        if (cursor) {
+            cursor.remove();
+        }
+        
+        if (cursorInterval) {
+            clearInterval(cursorInterval);
+            cursorInterval = null;
+        }
+    }
+    
+    if (isError) {
+        contentElement.classList.add('text-red-500');
+    }
+    
+    scrollToBottom();
 }
 
 window.onload = scrollToBottom;
@@ -103,16 +164,24 @@ socket.onmessage = function(event) {
     let data = JSON.parse(event.data);
     
     if (data.type === "chat_message") {
-        const messageElement = document.createElement("div");
-        messageElement.className = "message my-2";
+        createMessage(data.username, data.message, data.message_id, data.is_placeholder);
         
-        if (data.username === "AI_Assistant") {
-            messageElement.classList.add("bg-blue-50", "p-2", "rounded");
+        if (data.username === "AI_Assistant" && data.is_placeholder) {
+            updateAIStatus("responding", "AI is thinking...");
         }
+    }
+    else if (data.type === "update_ai_message") {
+        updateAIMessage(
+            data.message_id, 
+            data.content, 
+            data.is_thinking, 
+            data.is_final, 
+            data.is_error
+        );
         
-        messageElement.innerHTML = `<strong>${data.username}</strong>: ${data.message}`;
-        messagesDiv.appendChild(messageElement);
-        scrollToBottom();
+        if (data.is_final) {
+            updateAIStatus("idle", "AI is ready for new questions");
+        }
     }
     else if (data.type === "ai_status") {
         updateAIStatus(data.status, data.message);
