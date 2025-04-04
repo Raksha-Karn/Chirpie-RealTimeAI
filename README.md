@@ -36,7 +36,7 @@ Chirpie is a Django-based web application that allows users to join group chats 
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/Raksha-Karn/Chirpie.git
+   git clone https://github.com/Raksha-Karn/Chirpie-TwoInOne.git
    cd gc_ai
 2. Install the dependencies:
     ```bash
