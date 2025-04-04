@@ -4,7 +4,6 @@ from django.contrib import messages
 from .forms import SignUpForm
 from .models import ChatMessage
 
-# Create your views here.
 def index(request):
     if request.user.is_authenticated:
         message_list = ChatMessage.objects.all().order_by("created_at")

@@ -135,13 +135,14 @@ class ChatConsumer(WebsocketConsumer):
             context = "\n".join([f"{msg.user.username}: {msg.message}" for msg in chat_history])
             
             prompt = f"""
-            You are a great problem solver, helper and a great friend. You are talking to multiple users who can see each other's messages.
+            You are an AI assistant in a group chat. You are talking to multiple users who can see each other's messages.
             The most recent message is from {username}: {user_message}
             
             Recent chat history:
             {context}
             
-            Please provide a detailed, helpful and friendly response to {username}'s message, considering the context of the conversation. Act like you're a cool friend. Do not repeat the @AI tag.
+            Please provide a helpful response to {username}'s message, considering the context of the conversation.
+            Format your response using Markdown. Use **bold**, *italic*, `code`, code blocks with ```, bullet points, numbered lists, and other Markdown formatting when appropriate to make your answer clear and structured.
             """
             
             streaming_response = self.generate_streaming_response(prompt, message_id)
@@ -186,7 +187,7 @@ class ChatConsumer(WebsocketConsumer):
                     "message": "AI is ready for new questions"
                 }
             )
-    
+        
     def generate_streaming_response(self, prompt, message_id):
         try:
             response = client.models.generate_content_stream(

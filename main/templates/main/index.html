@@ -1,33 +1,231 @@
-{% extends "main/base.html" %}
-{% block content %}
-<div class="container flex items-center justify-center pt-10 gap-6 flex-col">
-    <div class="input flex gap-6 flex-col">
-        <h1 class="text-3xl mb-15 font-bold">Group Chat with AI</h1>
-        <h2>Welcome, {{ request.user.username }}</h2>
-        
-        <div id="ai-status" class="bg-gray-100 p-2 rounded text-center hidden">
-            <span id="ai-status-message">AI is ready</span>
-        </div>
-        
-        <div class="messages flex flex-col gap-2 border border-gray-300 rounded p-4 h-96 overflow-y-auto" id="messages">
-            {% for message in message_list %}
-            <div class="message my-2 {% if message.user.username == 'AI_Assistant' %}bg-blue-50 p-2 rounded{% endif %}" 
-                 {% if message.user.username == 'AI_Assistant' %}id="message-{{ message.id }}"{% endif %}>
-                <strong>{{ message.user.username }}</strong>: {{ message.message }}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chirpie 🐦</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked@4.0.0/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@2.3.6/dist/purify.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            pink: {
+              light: '#FFC0CB',
+              DEFAULT: '#FFA5B8',
+              dark: '#FF8DA1',
+              darker: '#FF7690'
+            },
+            soft: {
+              white: '#FFF5F7',
+              gray: '#F8F9FA',
+              pink: '#FFDDE5'
+            }
+          },
+          fontFamily: {
+            inter: ['Inter', 'sans-serif'],
+            poppins: ['Poppins', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #FFF5F7;
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+    }
+    
+    h1, h2, h3, h4, h5, h6 {
+      font-family: 'Poppins', sans-serif;
+    }
+    
+    .message-bubble {
+      position: relative;
+      margin: 12px 0;
+      padding: 14px 20px;
+      border-radius: 20px;
+      max-width: 85%;
+      transition: all 0.2s ease;
+      font-size: 1.1rem;
+    }
+    
+    .user-message {
+      background-color: #FFA5B8;
+      color: white;
+      border-bottom-right-radius: 4px;
+      margin-left: auto;
+    }
+    
+    .ai-message {
+      background-color: #FFDDE5;
+      color: #333;
+      border-bottom-left-radius: 4px;
+      margin-right: auto;
+    }
+    
+    .typing-indicator {
+      display: inline-block;
+      position: relative;
+    }
+    
+    .typing-indicator span {
+      height: 10px;
+      width: 10px;
+      float: left;
+      margin: 0 2px;
+      background-color: #FF8DA1;
+      display: block;
+      border-radius: 50%;
+      opacity: 0.4;
+    }
+    
+    .typing-indicator span:nth-of-type(1) {
+      animation: 1s blink infinite 0.3333s;
+    }
+    
+    .typing-indicator span:nth-of-type(2) {
+      animation: 1s blink infinite 0.6666s;
+    }
+    
+    .typing-indicator span:nth-of-type(3) {
+      animation: 1s blink infinite 0.9999s;
+    }
+    
+    @keyframes blink {
+      50% {
+        opacity: 1;
+      }
+    }
+    
+    .send-btn {
+      transition: all 0.2s ease;
+    }
+    
+    .send-btn:hover {
+      transform: translateY(-2px);
+    }
+    
+    .markdown-content h1 { font-size: 2rem; font-weight: bold; margin-top: 1.2rem; margin-bottom: 0.8rem; }
+    .markdown-content h2 { font-size: 1.75rem; font-weight: bold; margin-top: 1.2rem; margin-bottom: 0.8rem; }
+    .markdown-content h3 { font-size: 1.5rem; font-weight: bold; margin-top: 1.2rem; margin-bottom: 0.8rem; }
+    .markdown-content h4 { font-size: 1.25rem; font-weight: bold; margin-top: 1.2rem; margin-bottom: 0.8rem; }
+    .markdown-content p { margin-bottom: 1rem; font-size: 1.1rem; line-height: 1.6; }
+    .markdown-content ul, .markdown-content ol { padding-left: 2rem; margin-bottom: 1rem; font-size: 1.1rem; }
+    .markdown-content ul { list-style-type: disc; }
+    .markdown-content ol { list-style-type: decimal; }
+    .markdown-content li { margin-bottom: 0.5rem; }
+    .markdown-content pre { background-color: #fff; padding: 0.75rem; border-radius: 0.5rem; overflow-x: auto; margin-bottom: 1rem; border: 1px solid #FFD0E0; font-size: 1.05rem; }
+    .markdown-content code { font-family: monospace; background-color: #FFF0F5; padding: 0.2rem 0.4rem; border-radius: 0.25rem; color: #FF6B95; font-size: 1.05rem; }
+    .markdown-content pre code { padding: 0; background-color: transparent; }
+    .markdown-content blockquote { border-left: 4px solid #FFA5B8; padding-left: 1rem; color: #FF7690; margin-bottom: 1rem; background-color: #FFF5F7; border-radius: 0 0.5rem 0.5rem 0; font-size: 1.1rem; }
+    .markdown-content a { color: #FF6B95; text-decoration: underline; }
+    .markdown-content img { max-width: 100%; height: auto; border-radius: 0.5rem; }
+    .markdown-content table { border-collapse: collapse; width: 100%; margin-bottom: 1rem; font-size: 1.1rem; }
+    .markdown-content table, .markdown-content th, .markdown-content td { border: 1px solid #FFD0E0; }
+    .markdown-content th, .markdown-content td { padding: 0.75rem; text-align: left; }
+    .markdown-content th { background-color: #FFDDE5; }
+    
+    /* Custom scrollbar */
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 12px;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #FFF5F7;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background-color: #FFA5B8;
+      border-radius: 20px;
+    }
+  </style>
+</head>
+<body>
+    <nav class="bg-gradient-to-r from-pink-dark to-pink-darker text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div class="flex items-center justify-between h-20">
+            <div class="flex items-center">
+              <a href="{% url 'index' %}" class="flex-shrink-0">
+                <span class="font-poppins font-bold text-2xl">Chirpie<span class="text-soft-white"> 🐦</span></span>
+              </a>
             </div>
-            {% endfor %}
+            <div class="hidden md:block">
+              <div class="ml-10 flex items-center space-x-4">
+                <a href="{% url 'logout' %}" class="bg-white text-pink-dark px-5 py-3 rounded-full text-base font-medium hover:bg-soft-white transition-colors">Sign Out</a>
+              </div>
+            </div>
+            <div class="md:hidden">
+              <button class="inline-flex items-center justify-center p-3 rounded-md text-white hover:bg-pink-darker focus:outline-none">
+                <i class="fas fa-bars fa-lg"></i>
+              </button>
+            </div>
+          </div>
         </div>
-        
-        <form action="" class="input-form flex flex-col gap-2" id="message-form">
-            <input type="text" class="w-full p-2 text-center border border-gray-400 rounded" id="message-input" placeholder="Type your message here... (Use @AI to ask the AI)">
-            <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded" id="send-message" type="submit">Send</button>
+      </nav>
+    
+  <div class="container mx-auto px-4 py-8 max-w-8xl">
+    <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+      <div class="bg-gradient-to-r from-pink to-pink-dark p-5 text-white">
+        <h1 class="text-3xl font-poppins font-bold text-center">Let's Chirp 🐦</h1>
+        <p class="text-center text-soft-white font-inter text-lg mt-1">Welcome, {{ request.user.username }}</p>
+      </div>
+      
+      <div id="ai-status" class="mx-5 mt-4 p-4 rounded-lg bg-soft-pink text-pink-darker font-medium text-center hidden transition-all duration-300 ease-in-out text-lg">
+        <div class="flex items-center justify-center">
+          <div class="typing-indicator mr-3">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+          <span id="ai-status-message">AI is thinking...</span>
+        </div>
+      </div>
+      
+      <div class="messages flex flex-col gap-2 p-5 h-[650px] overflow-y-auto custom-scrollbar" id="messages">
+        {% for message in message_list %}
+        <div class="message-container flex {% if message.user.username == 'AI_Assistant' %}justify-start{% else %}justify-end{% endif %}">
+          <div class="message-bubble {% if message.user.username == 'AI_Assistant' %}ai-message{% else %}user-message{% endif %}" 
+               {% if message.user.username == 'AI_Assistant' %}id="message-{{ message.id }}"{% endif %}>
+            <div class="font-medium mb-1 text-base opacity-75">{{ message.user.username }}</div>
+            {% if message.user.username == 'AI_Assistant' %}
+            <div class="ai-content markdown-content">{{ message.message }}</div>
+            {% else %}
+            <div>{{ message.message }}</div>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      
+      <div class="p-5 border-t border-soft-pink">
+        <form action="" class="input-form flex items-center gap-3" id="message-form">
+          <div class="relative flex-1">
+            <input type="text" 
+                   class="w-full p-4 pr-12 border-2 border-pink-light focus:border-pink-dark rounded-full bg-soft-white outline-none transition-all text-lg" 
+                   id="message-input" 
+                   placeholder="Type your message here... (Use @AI to ask the AI)">
+          </div>
+          <button class="send-btn bg-gradient-to-r from-pink to-pink-dark text-white font-bold p-4 rounded-full hover:shadow-md flex items-center justify-center w-16 h-16" 
+                  id="send-message" 
+                  type="submit">
+            <i class="fas fa-paper-plane fa-lg"></i>
+          </button>
         </form>
         
-        <div class="text-sm text-gray-500">
-            <p>Tip: Start your message with "@AI" to ask a question to the AI assistant</p>
+        <div class="text-base text-gray-500 mt-3 text-center">
+          <p>Tip: Start your message with "@AI" to ask a question to the AI assistant</p>
         </div>
+      </div>
     </div>
-</div>
+  </div>
 
 <script>
 const messagesDiv = document.getElementById("messages");
@@ -41,6 +239,26 @@ let aiIsResponding = false;
 
 let cursorInterval = null;
 
+const renderer = new marked.Renderer();
+marked.setOptions({
+    renderer: renderer,
+    highlight: function(code, lang) {
+        return code;
+    },
+    pedantic: false,
+    gfm: true,
+    breaks: true,
+    sanitize: false,
+    smartypants: false,
+    xhtml: false
+});
+
+function renderMarkdown(text) {
+    const rawHtml = marked.parse(text);
+    const cleanHtml = DOMPurify.sanitize(rawHtml);
+    return cleanHtml;
+}
+
 function scrollToBottom() {
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
@@ -50,13 +268,10 @@ function updateAIStatus(status, message) {
     
     if (aiIsResponding) {
         aiStatus.classList.remove("hidden", "bg-green-100");
-        aiStatus.classList.add("bg-yellow-100");
         messageInput.disabled = true;
         sendMessageBtn.disabled = true;
         sendMessageBtn.classList.add("opacity-50");
     } else {
-        aiStatus.classList.remove("bg-yellow-100");
-        aiStatus.classList.add("bg-green-100");
         messageInput.disabled = false;
         sendMessageBtn.disabled = false;
         sendMessageBtn.classList.remove("opacity-50");
@@ -73,30 +288,54 @@ function updateAIStatus(status, message) {
 }
 
 function createMessage(username, message, messageId = null, isPlaceholder = false) {
-    const messageElement = document.createElement("div");
-    messageElement.className = "message my-2";
+    const messageContainer = document.createElement("div");
+    messageContainer.className = "message-container flex";
     
     if (username === "AI_Assistant") {
-        messageElement.classList.add("bg-blue-50", "p-2", "rounded");
-        if (messageId) {
-            messageElement.id = `message-${messageId}`;
-        }
+        messageContainer.classList.add("justify-start");
+    } else {
+        messageContainer.classList.add("justify-end");
+    }
+    
+    const messageElement = document.createElement("div");
+    messageElement.className = username === "AI_Assistant" ? "message-bubble ai-message" : "message-bubble user-message";
+    
+    if (username === "AI_Assistant" && messageId) {
+        messageElement.id = `message-${messageId}`;
+    }
+    
+    const usernamePart = document.createElement("div");
+    usernamePart.className = "font-medium mb-1 text-base opacity-75";
+    usernamePart.textContent = username;
+    
+    const contentPart = document.createElement("div");
+    
+    if (username === "AI_Assistant") {
+        contentPart.className = "ai-content markdown-content";
         
         if (isPlaceholder) {
-            messageElement.innerHTML = `<strong>${username}</strong>: <span class="ai-content">${message}</span><span class="cursor">|</span>`;
+            contentPart.textContent = message;
             
-            const cursor = messageElement.querySelector('.cursor');
+            const cursor = document.createElement("span");
+            cursor.className = "cursor";
+            cursor.textContent = "|";
+            contentPart.appendChild(cursor);
+            
             cursorInterval = setInterval(() => {
                 cursor.style.visibility = cursor.style.visibility === 'hidden' ? 'visible' : 'hidden';
             }, 500);
         } else {
-            messageElement.innerHTML = `<strong>${username}</strong>: <span class="ai-content">${message}</span>`;
+            contentPart.innerHTML = renderMarkdown(message);
         }
     } else {
-        messageElement.innerHTML = `<strong>${username}</strong>: ${message}`;
+        contentPart.textContent = message;
     }
     
-    messagesDiv.appendChild(messageElement);
+    messageElement.appendChild(usernamePart);
+    messageElement.appendChild(contentPart);
+    messageContainer.appendChild(messageElement);
+    
+    messagesDiv.appendChild(messageContainer);
     scrollToBottom();
     
     return messageElement;
@@ -109,7 +348,18 @@ function updateAIMessage(messageId, content, isThinking = false, isFinal = false
     const contentElement = messageElement.querySelector('.ai-content');
     if (!contentElement) return;
     
-    contentElement.textContent = content;
+    if (isThinking) {
+        contentElement.textContent = content;
+    } else {
+        contentElement.innerHTML = renderMarkdown(content);
+        
+        if (!isFinal) {
+            const cursor = document.createElement("span");
+            cursor.className = "cursor";
+            cursor.textContent = "|";
+            contentElement.appendChild(cursor);
+        }
+    }
     
     if (isFinal) {
         const cursor = messageElement.querySelector('.cursor');
@@ -197,4 +447,5 @@ window.addEventListener("beforeunload", function() {
     socket.close();
 });
 </script>
-{% endblock %}
+</body>
+</html>
