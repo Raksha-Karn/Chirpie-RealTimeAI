@@ -10,14 +10,20 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 
 def generate_response(contents):
     try:
-        response = client.models.generate_content(
+        response = client.models.generate_content_stream(
             model="gemini-2.0-flash",
             contents=contents,
         )
-        
-        return response.text
+        collected_response = ""
+        for chunk in response:
+            if hasattr(chunk, 'text'):
+                chunk_text = chunk.text
+                print(chunk_text, end="", flush=True)
+                collected_response += chunk_text
+            
+        print("\n")
+        return collected_response
     except Exception as e:
         print("Error generating response:", e)
         return None
-
-print(generate_response("Hello, how are you?"))
+generate_response("Write a poem about a cat")

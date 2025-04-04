@@ -1,72 +1,131 @@
 {% extends "main/base.html" %}
 {% block content %}
-    <div class="container flex items-center justify-center pt-10 gap-6 flex-col">
-        <div class="input flex gap-6 flex-col">
-            <h1 class="text-3xl mb-15 font-bold">Chat Page</h1>
-            <h2>Welcome, {{ request.user.username }}</h2>
-            <div class="messages flex flex-col gap-2 border border-gray-300 rounded p-4 h-96 overflow-y-auto" id="messages">
-                {% for message in message_list %}
-                <div class="message my-2">
-                    <strong>{{ message.user.username }}</strong>: {{ message.message }}
-                </div>
-                {% endfor %}
+<div class="container flex items-center justify-center pt-10 gap-6 flex-col">
+    <div class="input flex gap-6 flex-col">
+        <h1 class="text-3xl mb-15 font-bold">Group Chat with AI</h1>
+        <h2>Welcome, {{ request.user.username }}</h2>
+        
+        <div id="ai-status" class="bg-gray-100 p-2 rounded text-center hidden">
+            <span id="ai-status-message">AI is ready</span>
+        </div>
+        
+        <div class="messages flex flex-col gap-2 border border-gray-300 rounded p-4 h-96 overflow-y-auto" id="messages">
+            {% for message in message_list %}
+            <div class="message my-2 {% if message.user.username == 'AI_Assistant' %}bg-blue-50 p-2 rounded{% endif %}">
+                <strong>{{ message.user.username }}</strong>: {{ message.message }}
             </div>
-            <form action="" class="input-form flex flex-col gap-2" id="message-form">
-                <input type="text" class="w-full p-2 text-center border border-gray-400 rounded" id="message-input" placeholder="Type your message here...">
-                <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded" id="send-message" type="submit">Send</button>
-            </form>
-            
+            {% endfor %}
+        </div>
+        
+        <form action="" class="input-form flex flex-col gap-2" id="message-form">
+            <input type="text" class="w-full p-2 text-center border border-gray-400 rounded" id="message-input" placeholder="Type your message here... (Use @AI to ask the AI)">
+            <button class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded" id="send-message" type="submit">Send</button>
+        </form>
+        
+        <div class="text-sm text-gray-500">
+            <p>Tip: Start your message with "@AI" to ask a question to the AI assistant</p>
         </div>
     </div>
+</div>
 
-    <script>
-        const messagesDiv = document.getElementById("messages");
-        const messageInput = document.getElementById("message-input");
-        const sendMessageBtn = document.getElementById("send-message");
-        const form = document.getElementById("message-form");
+<script>
+const messagesDiv = document.getElementById("messages");
+const messageInput = document.getElementById("message-input");
+const sendMessageBtn = document.getElementById("send-message");
+const form = document.getElementById("message-form");
+const aiStatus = document.getElementById("ai-status");
+const aiStatusMessage = document.getElementById("ai-status-message");
 
-        function scrollToBottom() {
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+let aiIsResponding = false;
+
+function scrollToBottom() {
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+function updateAIStatus(status, message) {
+    aiIsResponding = status === "responding";
+    
+    if (aiIsResponding) {
+        aiStatus.classList.remove("hidden", "bg-green-100");
+        aiStatus.classList.add("bg-yellow-100");
+        messageInput.disabled = true;
+        sendMessageBtn.disabled = true;
+        sendMessageBtn.classList.add("opacity-50");
+    } else {
+        aiStatus.classList.remove("bg-yellow-100");
+        aiStatus.classList.add("bg-green-100");
+        messageInput.disabled = false;
+        sendMessageBtn.disabled = false;
+        sendMessageBtn.classList.remove("opacity-50");
+        
+        setTimeout(() => {
+            if (!aiIsResponding) {
+                aiStatus.classList.add("hidden");
+            }
+        }, 3000);
+    }
+    
+    aiStatusMessage.textContent = message;
+    aiStatus.classList.remove("hidden");
+}
+
+window.onload = scrollToBottom;
+
+let url = `ws://${window.location.host}/ws/chat/`;
+let socket = new WebSocket(url);
+
+socket.onopen = function(event) {
+    console.log("Socket connected");
+};
+
+form.addEventListener("submit", function(event) {
+    event.preventDefault();
+    
+    if (aiIsResponding) {
+        return;
+    }
+    
+    let message = messageInput.value.trim();
+    if (message === "") return;
+    
+    socket.send(
+        JSON.stringify({
+            "user_id": {{ request.user.id|default:"null" }},
+            "message": message
+        })
+    );
+    
+    console.log(message + " sent");
+    messageInput.value = "";
+});
+
+socket.onmessage = function(event) {
+    let data = JSON.parse(event.data);
+    
+    if (data.type === "chat_message") {
+        const messageElement = document.createElement("div");
+        messageElement.className = "message my-2";
+        
+        if (data.username === "AI_Assistant") {
+            messageElement.classList.add("bg-blue-50", "p-2", "rounded");
         }
         
-        window.onload = scrollToBottom;
-        
-        let url = `ws://${window.location.host}/ws/chat/`;
-        let socket = new WebSocket(url);
+        messageElement.innerHTML = `<strong>${data.username}</strong>: ${data.message}`;
+        messagesDiv.appendChild(messageElement);
+        scrollToBottom();
+    }
+    else if (data.type === "ai_status") {
+        updateAIStatus(data.status, data.message);
+    }
+    else if (data.type === "connection_status") {
+        if (data.ai_responding) {
+            updateAIStatus("responding", "AI is currently responding...");
+        }
+    }
+};
 
-        socket.onopen = function(event) {
-            console.log("Socket connected");
-        };
-
-        form.addEventListener("submit", function(event) {
-            event.preventDefault();
-            let message = messageInput.value.trim();
-            if (message === "") return;
-
-            socket.send(
-                JSON.stringify({
-                    "user_id": {{ request.user.id|default:"null" }},
-                    "message": message
-                })
-            );
-            console.log(message + " sent");
-            messageInput.value = "";
-        });
-
-        socket.onmessage = function(event) {
-            let data = JSON.parse(event.data);
-            if (data.type == "chat_message") {
-                const messageElement = document.createElement("div");
-                messageElement.className = "message my-2";
-                messageElement.innerHTML = `<strong>${data.username}</strong>: ${data.message}`;
-                messagesDiv.appendChild(messageElement);
-                
-                scrollToBottom();
-            }
-        };
-
-        window.addEventListener("beforeunload", function() {
-            socket.close();
-        });
-    </script>
+window.addEventListener("beforeunload", function() {
+    socket.close();
+});
+</script>
 {% endblock %}
